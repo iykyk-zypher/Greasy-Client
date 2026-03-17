@@ -1,15 +1,3 @@
-// ==UserScript==
-// @name         Greasy Client - 3.8.1
-// @namespace    http://tampermonkey.net/
-// @version      3.8.1
-// @description  Official Greasy Client
-// @author       Botless, Not_Cole & AngryWolfX
-// @match        https://miniblox.io/*
-// @license      MIT
-// @grant        none
-// @run-at       document-start
-// ==/UserScript==
-
 (function () {
     'use strict';
 
