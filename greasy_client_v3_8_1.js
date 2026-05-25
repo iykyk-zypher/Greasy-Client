@@ -1,12 +1,25 @@
+// ==UserScript==
+// @name         Greasy Client
+// @namespace    http://tampermonkey.net/
+// @version      3.9.0
+// @description  Official Greasy Client
+// @author       Botless, Not_Cole & AngryWolfX
+// @match        https://miniblox.io/*
+// @match        https://miniblox.org/*
+// @license      MIT
+// @grant        none
+// @run-at       document-start
+// ==/UserScript==
+
 (function () {
     'use strict';
 
-    // =========================
     // CONFIG
-    // =========================
-    const VERSION = "v3.8.1";
+    const VERSION = "v3.10.2";
     const LOGO_URL = "https://tinyurl.com/greasyclient";
     const SPLASH_BG = "https://wallpaperaccess.com/full/439751.jpg";
+    const splashPreloader = new Image();
+    splashPreloader.src = SPLASH_BG;
     const DISCORD_LINK = "https://discord.gg/emEaezsMzp";
 
     const YT_NOT_COLE = "https://www.youtube.com/@Not_ColePlayz?sub_confirmation=1";
@@ -33,14 +46,19 @@
     const defaultSettings = {
         nickname: "Greasy" + Math.floor(Math.random() * 999),
         nicknameConfirmed: false,
-        showFPS: true,
-        showCPS: true,
-        showKeystrokes: true,
-        showCrosshair: true,
-        showClock: true,
+        showFPS: false,
+        showCPS: false,
+        showKeystrokes: false,
+        showCrosshair: false,
+        showClock: false,
+        autoSaveModules: false,
+        soundPreset: "crystal",
+        soundsEnabled: true,
+        optimizedMode: false,
+        soundVolume: 70,
         language: "en",
         accentPreset: "green",
-        gameMenuBgUrl: "https://cdn.mos.cms.futurecdn.net/wpGxdxMvYHy7FZQqoKzB5j.jpg",
+        gameMenuBgUrl: "https://wallpaperaccess.com/full/439751.jpg",
         customColors: {},
         positions: {
             'greasy-main-title': { top: '15px', left: '15px' },
@@ -48,14 +66,23 @@
             'cps-wrap': { top: '110px', left: '15px' },
             'keys-wrap': { top: '160px', left: '15px' },
             'clock-wrap': { top: '320px', left: '15px' },
-            'gc-welcome-banner': { top: '20px', left: '50%' }
+            'gc-welcome-banner': { top: '70px', left: '15px' }
         }
     };
 
     let settings = JSON.parse(localStorage.getItem('greasyClientSettings')) || defaultSettings;
     settings.language = settings.language || "en";
     settings.accentPreset = settings.accentPreset || "green";
-    settings.showClock = typeof settings.showClock === "boolean" ? settings.showClock : true;
+    settings.showClock = typeof settings.showClock === "boolean" ? settings.showClock : false;
+    settings.showFPS = typeof settings.showFPS === "boolean" ? settings.showFPS : false;
+    settings.showCPS = typeof settings.showCPS === "boolean" ? settings.showCPS : false;
+    settings.showKeystrokes = typeof settings.showKeystrokes === "boolean" ? settings.showKeystrokes : false;
+    settings.showCrosshair = typeof settings.showCrosshair === "boolean" ? settings.showCrosshair : false;
+    settings.autoSaveModules = typeof settings.autoSaveModules === "boolean" ? settings.autoSaveModules : false;
+    settings.soundPreset = settings.soundPreset || "crystal";
+    settings.soundsEnabled = typeof settings.soundsEnabled === "boolean" ? settings.soundsEnabled : true;
+    settings.soundVolume = Number.isFinite(Number(settings.soundVolume)) ? Math.max(0, Math.min(100, Number(settings.soundVolume))) : 70;
+    settings.optimizedMode = typeof settings.optimizedMode === "boolean" ? settings.optimizedMode : false;
     settings.nicknameConfirmed = typeof settings.nicknameConfirmed === "boolean" ? settings.nicknameConfirmed : false;
     settings.customColors = settings.customColors || {};
 
@@ -65,9 +92,46 @@
     settings.positions['cps-wrap'] = settings.positions['cps-wrap'] || { top: '110px', left: '15px' };
     settings.positions['keys-wrap'] = settings.positions['keys-wrap'] || { top: '160px', left: '15px' };
     settings.positions['clock-wrap'] = settings.positions['clock-wrap'] || { top: '320px', left: '15px' };
-    settings.positions['gc-welcome-banner'] = settings.positions['gc-welcome-banner'] || { top: '20px', left: '50%' };
+    settings.positions['gc-welcome-banner'] = settings.positions['gc-welcome-banner'] || { top: '70px', left: '15px' };
+
+    const moduleIds = ['greasy-main-title', 'fps-wrap', 'cps-wrap', 'keys-wrap', 'clock-wrap'];
+
+    function cloneDefaultPositions() {
+        return JSON.parse(JSON.stringify(defaultSettings.positions));
+    }
+
+    function forceCleanModulesIfAutoSaveOff() {
+        if (settings.autoSaveModules) return;
+
+        settings.showFPS = false;
+        settings.showCPS = false;
+        settings.showKeystrokes = false;
+        settings.showCrosshair = false;
+        settings.showClock = false;
+        settings.positions = cloneDefaultPositions();
+    }
+
+    forceCleanModulesIfAutoSaveOff();
 
     const save = () => localStorage.setItem('greasyClientSettings', JSON.stringify(settings));
+
+    function saveModulesIfEnabled() {
+        if (settings.autoSaveModules) {
+            save();
+        }
+    }
+
+    function applyOptimizedMode() {
+        document.body.classList.toggle('gc-performance-mode', !!settings.optimizedMode);
+
+        if (settings.optimizedMode) {
+            document.querySelectorAll('.gc-magnetic-button').forEach(button => {
+                button.style.transform = '';
+                button.classList.remove('gc-magnet-active');
+            });
+        }
+    }
+
 
     function getAllColorPresets() {
         return {
@@ -149,15 +213,263 @@
         }, 2200);
     }
 
-    // =========================
+
+    function playGcTone(type = 'click', previewPreset = null) {
+        try {
+            if (!settings.soundsEnabled && !previewPreset) return;
+
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (!AudioCtx) return;
+
+            const preset = previewPreset || settings.soundPreset || 'crystal';
+            const ctx = new AudioCtx();
+            const now = ctx.currentTime;
+
+            const volumeLevel = Math.max(0, Math.min(2.4, Number(settings.soundVolume || 70) / 100));
+            const compressor = ctx.createDynamicsCompressor();
+            compressor.threshold.setValueAtTime(-24, now);
+            compressor.knee.setValueAtTime(22, now);
+            compressor.ratio.setValueAtTime(7, now);
+            compressor.attack.setValueAtTime(0.002, now);
+            compressor.release.setValueAtTime(0.22, now);
+            compressor.connect(ctx.destination);
+
+            const master = ctx.createGain();
+            master.gain.setValueAtTime(0.0001, now);
+
+            // Stronger internal gain. This only affects Greasy Client sounds.
+            const baseGain = type === 'click' ? 0.95 : 1.35;
+            master.gain.exponentialRampToValueAtTime(baseGain * volumeLevel, now + 0.018);
+            master.gain.exponentialRampToValueAtTime(0.0001, now + (type === 'click' ? 0.26 : 0.62));
+            master.connect(compressor);
+
+            function tone(freqStart, freqEnd, startTime, duration, wave = 'sine', volume = 1) {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+
+                osc.type = wave;
+                osc.frequency.setValueAtTime(freqStart, startTime);
+
+                if (freqEnd && freqEnd !== freqStart) {
+                    osc.frequency.exponentialRampToValueAtTime(Math.max(1, freqEnd), startTime + duration);
+                }
+
+                gain.gain.setValueAtTime(0.0001, startTime);
+                gain.gain.exponentialRampToValueAtTime(volume, startTime + 0.018);
+                gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+
+                osc.connect(gain);
+                gain.connect(master);
+                osc.start(startTime);
+                osc.stop(startTime + duration + 0.03);
+            }
+
+            // Five original sound styles.
+            // click = short UI click
+            // on    = module enabled
+            // off   = module disabled
+            const maps = {
+                crystal: {
+                    click: [[520, 760, 0, .09, 'sine', .58], [1040, 1320, .045, .12, 'triangle', .36]],
+                    on:    [[392, 560, 0, .13, 'sine', .81], [660, 990, .105, .18, 'triangle', .62], [1180, 1560, .235, .16, 'sine', .32]],
+                    off:   [[820, 620, 0, .14, 'triangle', .62], [520, 340, .12, .20, 'sine', .48], [300, 220, .285, .16, 'sine', .26]]
+                },
+                cyber: {
+                    click: [[170, 210, 0, .06, 'square', .32], [860, 1280, .045, .11, 'sawtooth', .29], [1480, 1720, .12, .07, 'triangle', .17]],
+                    on:    [[210, 340, 0, .10, 'square', .43], [480, 760, .09, .16, 'sawtooth', .36], [980, 1480, .22, .17, 'triangle', .29]],
+                    off:   [[920, 620, 0, .12, 'sawtooth', .36], [520, 300, .115, .18, 'square', .29], [240, 160, .28, .13, 'triangle', .17]]
+                },
+                bubble: {
+                    click: [[430, 560, 0, .08, 'sine', .45], [620, 820, .065, .10, 'sine', .32]],
+                    on:    [[330, 470, 0, .12, 'sine', .51], [470, 660, .12, .13, 'sine', .49], [660, 920, .245, .16, 'sine', .36]],
+                    off:   [[660, 500, 0, .12, 'sine', .45], [500, 360, .12, .15, 'sine', .36], [360, 260, .255, .16, 'sine', .23]]
+                },
+                retro: {
+                    click: [[330, 330, 0, .07, 'square', .32], [494, 494, .075, .07, 'square', .29], [660, 660, .15, .06, 'square', .22]],
+                    on:    [[330, 330, 0, .09, 'square', .36], [392, 392, .10, .09, 'square', .36], [523, 523, .20, .11, 'square', .32], [784, 784, .325, .12, 'square', .22]],
+                    off:   [[784, 784, 0, .09, 'square', .29], [523, 523, .10, .10, 'square', .28], [392, 392, .22, .10, 'square', .23], [262, 262, .34, .12, 'square', .17]]
+                },
+                soft: {
+                    click: [[420, 520, 0, .12, 'sine', .26], [620, 720, .10, .12, 'sine', .16]],
+                    on:    [[349, 440, 0, .18, 'sine', .32], [440, 587, .16, .20, 'sine', .29], [587, 740, .32, .17, 'triangle', .16]],
+                    off:   [[520, 430, 0, .17, 'sine', .29], [392, 300, .16, .19, 'sine', .22], [262, 220, .33, .13, 'sine', .13]]
+                }
+            };
+
+            const selected = maps[preset] || maps.crystal;
+            const notes = selected[type] || selected.click;
+
+            notes.forEach(note => {
+                const [a, b, offset, duration, wave, volume] = note;
+                tone(a, b, now + offset, duration, wave, volume);
+            });
+
+            setTimeout(() => ctx.close(), 700);
+        } catch (e) {}
+    }
+
+    function playGcButtonSound() {
+        playGcTone('click');
+    }
+
+    function playGcModuleSound(isEnabled) {
+        playGcTone(isEnabled ? 'on' : 'off');
+    }
+
+    function bindMagneticButtons() {
+        if (bindMagneticButtons.bound) return;
+        bindMagneticButtons.bound = true;
+
+        const selector = [
+            'button',
+            '[role="button"]',
+            '.btn',
+            '[class*="button"]',
+            '[class*="Button"]'
+        ].join(',');
+
+        function refreshMagneticButtons() {
+            document.querySelectorAll(selector).forEach(button => {
+                if (!button.classList.contains('gc-magnetic-button')) {
+                    button.classList.add('gc-magnetic-button');
+                }
+            });
+        }
+
+        refreshMagneticButtons();
+
+        const observer = new MutationObserver(refreshMagneticButtons);
+        observer.observe(document.body, { childList: true, subtree: true });
+
+        document.addEventListener('mousemove', (e) => {
+            if (settings.optimizedMode) return;
+            const buttons = Array.from(document.querySelectorAll('.gc-magnetic-button'))
+                .filter(button => {
+                    const style = window.getComputedStyle(button);
+                    const rect = button.getBoundingClientRect();
+
+                    return !button.disabled &&
+                        style.display !== 'none' &&
+                        style.visibility !== 'hidden' &&
+                        parseFloat(style.opacity || '1') > 0 &&
+                        rect.width >= 24 &&
+                        rect.height >= 18;
+                });
+
+            let closestButton = null;
+            let closestDistance = Infinity;
+
+            buttons.forEach(button => {
+                const rect = button.getBoundingClientRect();
+                if (!rect.width || !rect.height) return;
+
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+                const distance = Math.hypot(e.clientX - centerX, e.clientY - centerY);
+
+                if (distance < 90 && distance < closestDistance) {
+                    closestDistance = distance;
+                    closestButton = button;
+                }
+            });
+
+            buttons.forEach(button => {
+                if (button === closestButton) {
+                    const rect = button.getBoundingClientRect();
+                    const x = (e.clientX - rect.left - rect.width / 2) * 0.055;
+                    const y = (e.clientY - rect.top - rect.height / 2) * 0.055;
+                    const scale = 1 + Math.max(0, (90 - closestDistance) / 90) * 0.03;
+
+                    button.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+                    button.classList.add('gc-magnet-active');
+                } else {
+                    button.style.transform = '';
+                    button.classList.remove('gc-magnet-active');
+                }
+            });
+        });
+
+        document.addEventListener('mouseleave', () => {
+            document.querySelectorAll('.gc-magnetic-button').forEach(button => {
+                button.style.transform = '';
+                button.classList.remove('gc-magnet-active');
+            });
+        });
+    }
+
+    function bindClientButtonSounds() {
+        if (bindClientButtonSounds.bound) return;
+        bindClientButtonSounds.bound = true;
+
+        document.addEventListener('click', (e) => {
+            const target = e.target.closest(
+                '#gc-master-container button, ' +
+                '#client-menu button, ' +
+                '#gc-credits-modal button, ' +
+                '#gc-sounds-modal button, ' +
+                '#gc-delete-confirm-modal button, ' +
+                '#gc-nick-confirm-modal button'
+            );
+
+            if (!target || target.disabled) return;
+
+            if (target.id === 'btn-cross') {
+                playGcModuleSound(!settings.showCrosshair);
+                return;
+            }
+
+            if (target.id === 'btn-fps') {
+                playGcModuleSound(!settings.showFPS);
+                return;
+            }
+
+            if (target.id === 'btn-cps') {
+                playGcModuleSound(!settings.showCPS);
+                return;
+            }
+
+            if (target.id === 'btn-keys') {
+                playGcModuleSound(!settings.showKeystrokes);
+                return;
+            }
+
+            if (target.id === 'btn-clock') {
+                playGcModuleSound(!settings.showClock);
+                return;
+            }
+
+            if (target.id === 'btn-save-modules') {
+                playGcModuleSound(!settings.autoSaveModules);
+                return;
+            }
+
+            if (target.id === 'btn-optimized-mode') {
+                playGcModuleSound(!settings.optimizedMode);
+                return;
+            }
+
+            playGcButtonSound();
+        }, true);
+    }
+
     // TRANSLATIONS
-    // =========================
     const I18N = {
         en: {
             play: "PLAY",
             modSettings: "MOD SETTINGS",
             discord: "DISCORD SERVER",
             credits: "CREDITS",
+            sounds: "SOUNDS",
+            soundsTitle: "SOUND SETTINGS",
+            soundsEnabled: "SOUNDS ENABLED",
+            soundVolume: "VOLUME",
+            soundTest: "TEST SOUND",
+            soundCrystal: "Crystal",
+            soundCyber: "Cyber",
+            soundBubble: "Bubble",
+            soundRetro: "Retro",
+            soundSoft: "Soft",
+            soundSelected: "Sound selected.",
             close: "CLOSE",
             subscribe: "SUBSCRIBE",
             founderOfGC: "Founder of GC",
@@ -179,6 +491,7 @@
             cpsCounter: "CPS COUNTER",
             keystrokes: "KEYSTROKES",
             clock: "CLOCK",
+            saveModules: "SAVE MODULES",
             time: "TIME",
             language: "LANGUAGE",
             accentColor: "ACCENT COLOR",
@@ -212,6 +525,17 @@
             modSettings: "AJUSTES DEL MOD",
             discord: "SERVIDOR DISCORD",
             credits: "CRÉDITOS",
+            sounds: "SONIDOS",
+            soundsTitle: "CONFIGURACIÓN DE SONIDOS",
+            soundsEnabled: "SONIDOS ACTIVOS",
+            soundVolume: "VOLUMEN",
+            soundTest: "PROBAR SONIDO",
+            soundCrystal: "Cristal",
+            soundCyber: "Cyber",
+            soundBubble: "Burbuja",
+            soundRetro: "Retro",
+            soundSoft: "Suave",
+            soundSelected: "Sonido seleccionado.",
             close: "CERRAR",
             subscribe: "SUSCRÍBETE",
             founderOfGC: "Fundador de GC",
@@ -233,6 +557,7 @@
             cpsCounter: "CONTADOR CPS",
             keystrokes: "TECLAS",
             clock: "RELOJ",
+            saveModules: "GUARDAR MÓDULOS",
             time: "HORA",
             language: "IDIOMA",
             accentColor: "COLOR DE ACENTO",
@@ -268,9 +593,7 @@
         return I18N[lang][key] || I18N.en[key] || key;
     }
 
-    // =========================
     // ORIGINAL IMAGE MODIFIER
-    // =========================
     function modifyMinibloxImages() {
         const imgElements = document.querySelectorAll('img');
         imgElements.forEach(img => {
@@ -286,9 +609,7 @@
     }
     setInterval(modifyMinibloxImages, 500);
 
-    // =========================
     // MINIBLOX BUTTON STYLE FIXED
-    // =========================
     function styleMinibloxButtons() {
         const candidates = document.querySelectorAll('button, [role="button"], .btn, [class*="button"], [class*="Button"]');
 
@@ -345,9 +666,7 @@
     }
     setInterval(styleMinibloxButtons, 700);
 
-    // =========================
     // STYLES
-    // =========================
     const style = document.createElement('style');
     style.id = 'gc-pro-style';
     document.head.appendChild(style);
@@ -414,7 +733,7 @@
             #gc-master-container {
                 position: fixed;
                 inset: 0;
-                background: url('${SPLASH_BG}') no-repeat center center / cover;
+                background: #05070b;
                 z-index: 100000;
                 display: flex;
                 flex-direction: column;
@@ -424,16 +743,37 @@
                 opacity: 1;
                 transition: opacity .8s ease, transform .8s ease;
                 overflow: hidden;
+                isolation: isolate;
+            }
+
+            #gc-master-bg {
+                position: absolute;
+                inset: 0;
+                z-index: 0;
+                background-position: center center;
+                background-repeat: no-repeat;
+                background-size: cover;
+                opacity: 0;
+                transform: scale(1.02);
+                transition: opacity .35s ease, transform .8s ease;
+                will-change: opacity, transform;
+            }
+
+            #gc-master-container.gc-bg-ready #gc-master-bg {
+                opacity: 1;
+                transform: scale(1);
             }
 
             #gc-master-container::before {
                 content: "";
                 position: absolute;
                 inset: 0;
+                z-index: 1;
                 background:
                     radial-gradient(circle at center, rgba(255,255,255,0.06), transparent 30%),
                     linear-gradient(180deg, rgba(0,0,0,0.22), rgba(0,0,0,0.58));
                 backdrop-filter: blur(3px);
+                pointer-events: none;
             }
 
             #gc-branding,
@@ -501,7 +841,8 @@
             .gc-input-field,
             .gc-select,
             .gc-color-input {
-                width: 92%;
+                width: 100%;
+                box-sizing: border-box;
                 padding: 10px 12px;
                 margin: 6px 0;
                 background: rgba(0,0,0,0.45);
@@ -554,7 +895,7 @@
                 filter: brightness(1.05);
             }
 
-            .gc-sub-btn, #gc-play, #gc-credits-btn, #gc-close-credits, #gc-save-custom-color, #gc-delete-yes, #gc-delete-cancel, #gc-nick-yes, #gc-nick-cancel {
+            .gc-sub-btn, #gc-play, #gc-credits-btn, #gc-close-credits, #gc-close-sounds, #gc-test-sound, .gc-sound-option, #gc-save-custom-color, #gc-delete-yes, #gc-delete-cancel, #gc-nick-yes, #gc-nick-cancel {
                 position: relative;
                 width: 100%;
                 overflow: hidden;
@@ -569,6 +910,9 @@
             #gc-play::before,
             #gc-credits-btn::before,
             #gc-close-credits::before,
+            #gc-close-sounds::before,
+            #gc-test-sound::before,
+            .gc-sound-option::before,
             #gc-save-custom-color::before,
             #gc-delete-yes::before,
             #gc-delete-cancel::before,
@@ -589,6 +933,9 @@
             #gc-play:hover::before,
             #gc-credits-btn:hover::before,
             #gc-close-credits:hover::before,
+            #gc-close-sounds:hover::before,
+            #gc-test-sound:hover::before,
+            .gc-sound-option:hover::before,
             #gc-save-custom-color:hover::before,
             #gc-delete-yes:hover::before,
             #gc-delete-cancel:hover::before,
@@ -620,7 +967,7 @@
                 box-shadow: none;
             }
 
-            .gc-sub-btn, #gc-credits-btn, #gc-close-credits, #gc-delete-cancel, #gc-nick-cancel {
+            .gc-sub-btn, #gc-credits-btn, #gc-close-credits, #gc-close-sounds, #gc-test-sound, .gc-sound-option, #gc-delete-cancel, #gc-nick-cancel {
                 background: rgba(255,255,255,0.03);
                 color: var(--gc-text);
                 border: 1px solid rgba(255,255,255,0.1);
@@ -644,6 +991,9 @@
             .gc-sub-btn:hover,
             #gc-credits-btn:hover,
             #gc-close-credits:hover,
+            #gc-close-sounds:hover,
+            #gc-test-sound:hover,
+            .gc-sound-option:hover,
             #gc-delete-cancel:hover,
             #gc-save-custom-color:hover,
             #gc-delete-yes:hover,
@@ -825,6 +1175,7 @@
 
             #client-menu,
             #gc-credits-modal,
+            #gc-sounds-modal,
             #gc-delete-confirm-modal,
             #gc-nick-confirm-modal {
                 position: fixed;
@@ -847,13 +1198,15 @@
             }
 
             #client-menu {
-                max-height: 86vh;
+                max-height: 88vh;
                 overflow-y: auto;
-                width: 360px;
+                width: min(560px, calc(100vw - 28px));
+                padding: 26px;
             }
 
             #client-menu.gc-open,
             #gc-credits-modal.gc-open,
+            #gc-sounds-modal.gc-open,
             #gc-delete-confirm-modal.gc-open,
             #gc-nick-confirm-modal.gc-open {
                 display: block !important;
@@ -864,12 +1217,14 @@
 
             #client-menu.gc-closing,
             #gc-credits-modal.gc-closing,
+            #gc-sounds-modal.gc-closing,
             #gc-delete-confirm-modal.gc-closing,
             #gc-nick-confirm-modal.gc-closing {
                 animation: gcFadeOutDown .22s ease forwards;
             }
 
-            #gc-credits-modal {
+            #gc-credits-modal,
+            #gc-sounds-modal {
                 min-width: 420px;
                 max-width: 560px;
                 z-index: 100003;
@@ -963,11 +1318,194 @@
                 font-size: 14px;
             }
 
+            .gc-sounds-grid {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 10px;
+                margin-top: 12px;
+            }
+
+            .gc-sound-option {
+                min-height: 54px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                text-align: center;
+            }
+
+            .gc-sound-option.gc-selected-sound {
+                border-color: var(--gc-accent) !important;
+                color: var(--gc-accent) !important;
+                box-shadow: 0 0 18px color-mix(in srgb, var(--gc-accent) 22%, transparent);
+            }
+
+            .gc-sound-toggle-row {
+                margin-top: 12px;
+                padding: 12px;
+                border-radius: 12px;
+                border: 1px solid rgba(255,255,255,0.08);
+                background: rgba(255,255,255,0.03);
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 14px;
+                text-align: left;
+            }
+
+            .gc-sound-volume-wrap {
+                margin-top: 12px;
+                padding: 12px;
+                border-radius: 12px;
+                border: 1px solid rgba(255,255,255,0.08);
+                background: rgba(255,255,255,0.03);
+                text-align: left;
+            }
+
+            .gc-sound-volume-row {
+                display: grid;
+                grid-template-columns: 1fr 54px;
+                gap: 12px;
+                align-items: center;
+                margin-top: 8px;
+            }
+
+            #gc-sound-volume {
+                width: 100%;
+                accent-color: var(--gc-accent);
+                cursor: pointer;
+            }
+
+            #gc-sound-volume-value {
+                color: var(--gc-accent);
+                font-weight: 900;
+                font-family: monospace;
+                text-align: right;
+            }
+
+
+            .gc-sound-switch {
+                width: 48px;
+                height: 26px;
+                border-radius: 999px;
+                border: 1px solid rgba(255,255,255,0.12);
+                background: rgba(255,255,255,0.10);
+                position: relative;
+                cursor: pointer;
+                flex-shrink: 0;
+                transition: background .2s ease, border-color .2s ease;
+            }
+
+            .gc-sound-switch::after {
+                content: "";
+                position: absolute;
+                top: 3px;
+                left: 3px;
+                width: 18px;
+                height: 18px;
+                border-radius: 50%;
+                background: #fff;
+                transition: transform .2s ease;
+            }
+
+            .gc-sound-switch.gc-on {
+                background: var(--gc-accent);
+                border-color: var(--gc-accent);
+            }
+
+            .gc-sound-switch.gc-on::after {
+                transform: translateX(22px);
+            }
+
             .gc-row-2 {
                 display: grid;
                 grid-template-columns: 1fr 1fr;
-                gap: 10px;
+                gap: 12px;
                 margin-top: 8px;
+            }
+
+            .gc-menu-header {
+                margin-bottom: 16px;
+                text-align: left;
+            }
+
+            .gc-menu-header h2 {
+                margin: 0;
+                color: var(--gc-accent);
+                font-size: 28px;
+                letter-spacing: .6px;
+            }
+
+            .gc-menu-header p {
+                font-size: 12px;
+                color: #8f98a3;
+                margin: 6px 0 0;
+            }
+
+            .gc-settings-section {
+                margin-top: 14px;
+                padding: 14px;
+                background: rgba(255,255,255,0.03);
+                border: 1px solid rgba(255,255,255,0.06);
+                border-radius: 16px;
+                box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
+            }
+
+            .gc-section-title {
+                color: var(--gc-text);
+                font-size: 13px;
+                font-weight: 800;
+                margin: 0 0 10px 0;
+                text-transform: uppercase;
+                letter-spacing: .8px;
+            }
+
+            .gc-settings-section .gc-label:first-child {
+                margin-top: 0;
+            }
+
+            .gc-modules-grid {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 12px;
+                margin-top: 4px;
+            }
+
+            .gc-modules-grid .gc-sub-btn {
+                width: 100%;
+                margin-top: 0;
+                min-height: 54px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                text-align: center;
+            }
+
+            .gc-full-span {
+                grid-column: 1 / -1;
+            }
+
+            .gc-inline-note {
+                font-size: 11px;
+                color: var(--gc-text-muted);
+                margin-top: 8px;
+                text-align: left;
+                line-height: 1.45;
+            }
+
+            @media (max-width: 640px) {
+                #client-menu {
+                    width: min(96vw, 560px);
+                    padding: 18px;
+                }
+
+                .gc-row-2,
+                .gc-modules-grid {
+                    grid-template-columns: 1fr;
+                }
+
+                .gc-menu-header h2 {
+                    font-size: 24px;
+                }
             }
 
             .gc-footer-version {
@@ -1118,6 +1656,155 @@
                 border-color: rgba(255,92,122,0.45);
             }
 
+            @keyframes gcButtonPop {
+                0% { transform: scale(1); }
+                45% { transform: scale(0.965); }
+                100% { transform: scale(1); }
+            }
+
+            @keyframes gcModuleGlowOn {
+                0% { box-shadow: 0 0 0 rgba(0,0,0,0); }
+                45% { box-shadow: 0 0 22px var(--gc-glow); }
+                100% { box-shadow: 0 0 14px color-mix(in srgb, var(--gc-accent) 16%, transparent); }
+            }
+
+            @keyframes gcPanelAura {
+                0% { box-shadow: 0 20px 60px rgba(0,0,0,0.52), 0 0 0 color-mix(in srgb, var(--gc-accent) 0%, transparent); }
+                50% { box-shadow: 0 24px 70px rgba(0,0,0,0.58), 0 0 32px color-mix(in srgb, var(--gc-accent) 20%, transparent); }
+                100% { box-shadow: 0 20px 60px rgba(0,0,0,0.52), 0 0 18px color-mix(in srgb, var(--gc-accent) 12%, transparent); }
+            }
+
+            #client-menu.gc-open,
+            #gc-credits-modal.gc-open,
+            #gc-sounds-modal.gc-open,
+            #gc-delete-confirm-modal.gc-open,
+            #gc-nick-confirm-modal.gc-open {
+                animation:
+                    gcFadeInUp .24s var(--gc-ease),
+                    gcPanelAura .72s ease-out;
+            }
+
+            .gc-sub-btn,
+            #gc-play,
+            #gc-credits-btn,
+            #gc-close-credits,
+            #gc-close-sounds,
+            .gc-sound-option,
+            #gc-save-custom-color,
+            #gc-delete-yes,
+            #gc-delete-cancel,
+            #gc-nick-yes,
+            #gc-nick-cancel,
+            #gc-test-sound {
+                transform: translateZ(0);
+                will-change: transform, box-shadow, filter;
+            }
+
+            .gc-sub-btn:hover,
+            #gc-play:hover:not(:disabled),
+            #gc-credits-btn:hover,
+            #gc-close-credits:hover,
+            #gc-close-sounds:hover,
+            .gc-sound-option:hover,
+            #gc-save-custom-color:hover,
+            #gc-delete-yes:hover,
+            #gc-delete-cancel:hover,
+            #gc-nick-yes:hover,
+            #gc-nick-cancel:hover,
+            #gc-test-sound:hover {
+                transform: translateY(-2px) scale(1.015);
+                filter: brightness(1.08);
+            }
+
+            .gc-sub-btn:active,
+            #gc-play:active,
+            #gc-credits-btn:active,
+            #gc-close-credits:active,
+            #gc-close-sounds:active,
+            .gc-sound-option:active,
+            #gc-save-custom-color:active,
+            #gc-delete-yes:active,
+            #gc-delete-cancel:active,
+            #gc-nick-yes:active,
+            #gc-nick-cancel:active,
+            #gc-test-sound:active {
+                animation: gcButtonPop .18s ease-out;
+            }
+
+            .active-opt,
+            .gc-selected-sound {
+                animation: gcModuleGlowOn .32s ease-out;
+            }
+
+            .draggable-hud.gc-show {
+                transition:
+                    opacity .28s var(--gc-ease),
+                    transform .28s var(--gc-ease),
+                    filter .22s ease;
+                filter: drop-shadow(0 8px 18px rgba(0,0,0,.28));
+            }
+
+            .key.active {
+                animation: gcButtonPop .12s ease-out;
+            }
+
+            .gc-magnetic-button {
+                transition:
+                    transform .18s var(--gc-ease),
+                    box-shadow .22s ease,
+                    border-color .22s ease,
+                    filter .22s ease;
+                will-change: transform;
+            }
+
+            .gc-magnetic-button.gc-magnet-active {
+                filter: brightness(1.08);
+            }
+
+            body.gc-performance-mode *,
+            body.gc-performance-mode *::before,
+            body.gc-performance-mode *::after {
+                animation-duration: .01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: .01ms !important;
+                scroll-behavior: auto !important;
+            }
+
+            body.gc-performance-mode #gc-master-container::before,
+            body.gc-performance-mode #client-menu,
+            body.gc-performance-mode #gc-credits-modal,
+            body.gc-performance-mode #gc-sounds-modal,
+            body.gc-performance-mode #gc-delete-confirm-modal,
+            body.gc-performance-mode #gc-nick-confirm-modal,
+            body.gc-performance-mode .hud-item {
+                backdrop-filter: none !important;
+                -webkit-backdrop-filter: none !important;
+            }
+
+            body.gc-performance-mode #client-menu,
+            body.gc-performance-mode #gc-credits-modal,
+            body.gc-performance-mode #gc-sounds-modal,
+            body.gc-performance-mode #gc-delete-confirm-modal,
+            body.gc-performance-mode #gc-nick-confirm-modal,
+            body.gc-performance-mode .hud-item,
+            body.gc-performance-mode .key,
+            body.gc-performance-mode .gc-box {
+                box-shadow: 0 8px 18px rgba(0,0,0,0.32) !important;
+            }
+
+            body.gc-performance-mode .gc-magnetic-button,
+            body.gc-performance-mode .gc-magnetic-button:hover,
+            body.gc-performance-mode .gc-magnetic-button.gc-magnet-active {
+                transform: none !important;
+                filter: none !important;
+            }
+
+            body.gc-performance-mode #gc-crosshair,
+            body.gc-performance-mode .draggable-hud.gc-show {
+                animation: none !important;
+                filter: none !important;
+            }
+
             #gc-custom-presets-empty {
                 color: var(--gc-text-muted);
                 font-size: 12px;
@@ -1126,9 +1813,77 @@
         `;
     }
 
-    // =========================
     // DRAGGABLE LOGIC
-    // =========================
+    function clampNumber(value, min, max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    function clampElementToViewport(el) {
+        if (!el) return;
+
+        const margin = 4;
+        const currentDisplay = el.style.display;
+        const currentVisibility = el.style.visibility;
+        const computed = window.getComputedStyle(el);
+        const wasHidden = computed.display === 'none';
+
+        if (wasHidden) {
+            el.style.visibility = 'hidden';
+            el.style.display = 'block';
+        }
+
+        const width = el.offsetWidth || 1;
+        const height = el.offsetHeight || 1;
+        const maxLeft = Math.max(margin, window.innerWidth - width - margin);
+        const maxTop = Math.max(margin, window.innerHeight - height - margin);
+
+        const nextLeft = clampNumber(el.offsetLeft, margin, maxLeft);
+        const nextTop = clampNumber(el.offsetTop, margin, maxTop);
+
+        el.style.left = nextLeft + 'px';
+        el.style.top = nextTop + 'px';
+
+        if (wasHidden) {
+            el.style.display = currentDisplay;
+            el.style.visibility = currentVisibility;
+        }
+    }
+
+    function getPositionForElement(id) {
+        if (settings.autoSaveModules && settings.positions && settings.positions[id]) {
+            return settings.positions[id];
+        }
+
+        return defaultSettings.positions[id] || { top: '15px', left: '15px' };
+    }
+
+    function applyModulePositions() {
+        moduleIds.forEach(id => {
+            const el = document.getElementById(id);
+            if (!el) return;
+
+            const pos = getPositionForElement(id);
+            el.style.top = pos.top;
+            el.style.left = pos.left;
+            clampElementToViewport(el);
+        });
+    }
+
+    function captureModulePositions() {
+        if (!settings.positions) settings.positions = {};
+
+        moduleIds.forEach(id => {
+            const el = document.getElementById(id);
+            if (!el) return;
+
+            clampElementToViewport(el);
+            settings.positions[id] = {
+                top: el.style.top,
+                left: el.style.left
+            };
+        });
+    }
+
     function makeDraggable(el) {
         let p1 = 0, p2 = 0, p3 = 0, p4 = 0;
         el.onmousedown = (e) => {
@@ -1140,8 +1895,13 @@
             document.onmouseup = () => {
                 document.onmouseup = null;
                 document.onmousemove = null;
-                settings.positions[el.id] = { top: el.style.top, left: el.style.left };
-                save();
+
+                clampElementToViewport(el);
+
+                if (settings.autoSaveModules) {
+                    settings.positions[el.id] = { top: el.style.top, left: el.style.left };
+                    save();
+                }
             };
 
             document.onmousemove = (e) => {
@@ -1152,13 +1912,12 @@
                 p4 = e.clientY;
                 el.style.top = (el.offsetTop - p2) + "px";
                 el.style.left = (el.offsetLeft - p1) + "px";
+                clampElementToViewport(el);
             };
         };
     }
 
-    // =========================
     // UI HELPERS
-    // =========================
     function revealHUD(el) {
         if (!el) return;
         el.style.display = 'block';
@@ -1175,19 +1934,37 @@
 
     function openPanel(panel) {
         if (!panel) return;
+
         panel.style.display = 'block';
+        panel.style.visibility = 'visible';
         panel.classList.remove('gc-closing');
-        requestAnimationFrame(() => panel.classList.add('gc-open'));
+        panel.classList.add('gc-open');
+
+        panel.style.opacity = '0';
+        panel.style.transform = 'translate(-50%, -48%) scale(.96)';
+
+        requestAnimationFrame(() => {
+            panel.style.opacity = '1';
+            panel.style.transform = 'translate(-50%, -50%) scale(1)';
+        });
     }
 
     function closePanel(panel) {
         if (!panel) return;
+
         panel.classList.remove('gc-open');
         panel.classList.add('gc-closing');
+
+        panel.style.opacity = '0';
+        panel.style.transform = 'translate(-50%, -52%) scale(.96)';
+
         setTimeout(() => {
             panel.style.display = 'none';
+            panel.style.visibility = 'visible';
             panel.classList.remove('gc-closing');
-        }, 220);
+            panel.style.opacity = '';
+            panel.style.transform = '';
+        }, 180);
     }
 
     function toggleMenu(menu) {
@@ -1316,8 +2093,48 @@
         const creditsBtn = document.getElementById('gc-credits-btn');
         if (creditsBtn) creditsBtn.textContent = t('credits');
 
+        const soundsBtn = document.getElementById('gc-sounds-btn');
+        if (soundsBtn) soundsBtn.textContent = t('sounds');
+
         const closeCreditsBtn = document.getElementById('gc-close-credits');
         if (closeCreditsBtn) closeCreditsBtn.textContent = t('close');
+
+        const closeSoundsBtn = document.getElementById('gc-close-sounds');
+        if (closeSoundsBtn) closeSoundsBtn.textContent = t('close');
+
+        const soundsTitle = document.getElementById('gc-sounds-title');
+        if (soundsTitle) soundsTitle.textContent = t('soundsTitle');
+
+        const soundsEnabledLabel = document.getElementById('gc-sounds-enabled-label');
+        if (soundsEnabledLabel) soundsEnabledLabel.textContent = t('soundsEnabled');
+
+        const soundVolumeLabel = document.getElementById('gc-sound-volume-label');
+        if (soundVolumeLabel) soundVolumeLabel.textContent = t('soundVolume');
+
+        const soundTestBtn = document.getElementById('gc-test-sound');
+        if (soundTestBtn) soundTestBtn.textContent = t('soundTest');
+
+        const soundVolumeInput = document.getElementById('gc-sound-volume');
+        const soundVolumeValue = document.getElementById('gc-sound-volume-value');
+        if (soundVolumeInput) soundVolumeInput.value = settings.soundVolume;
+        if (soundVolumeValue) soundVolumeValue.textContent = `${settings.soundVolume}%`;
+
+        document.querySelectorAll('.gc-sound-option').forEach(btn => {
+            const preset = btn.getAttribute('data-sound-preset');
+            const key = {
+                crystal: 'soundCrystal',
+                cyber: 'soundCyber',
+                bubble: 'soundBubble',
+                retro: 'soundRetro',
+                soft: 'soundSoft'
+            }[preset];
+
+            if (key) btn.textContent = t(key);
+            btn.classList.toggle('gc-selected-sound', preset === settings.soundPreset);
+        });
+
+        const soundsToggle = document.getElementById('gc-sounds-toggle');
+        if (soundsToggle) soundsToggle.classList.toggle('gc-on', settings.soundsEnabled);
 
         const subscribeFounder = document.getElementById('gc-sub-founder');
         if (subscribeFounder) subscribeFounder.textContent = t('subscribe');
@@ -1354,6 +2171,12 @@
 
         const btnClock = document.getElementById('btn-clock');
         if (btnClock) btnClock.textContent = t('clock');
+
+        const btnSaveModules = document.getElementById('btn-save-modules');
+        if (btnSaveModules) btnSaveModules.textContent = t('saveModules');
+
+        const btnOptimizedMode = document.getElementById('btn-optimized-mode');
+        if (btnOptimizedMode) btnOptimizedMode.textContent = t('optimizedMode');
 
         const langLabel = document.getElementById('gc-language-label');
         if (langLabel) langLabel.textContent = t('language');
@@ -1442,13 +2265,14 @@
         refreshPlayButtonState();
     }
 
-    // =========================
     // INIT
-    // =========================
     function init() {
         if (document.getElementById('gc-master-container')) return;
 
+        bindClientButtonSounds();
+        bindMagneticButtons();
         applyTheme();
+        applyOptimizedMode();
 
         const cross = document.body.appendChild(document.createElement('div'));
         cross.id = 'gc-crosshair';
@@ -1457,10 +2281,14 @@
         const welcomeBanner = document.body.appendChild(document.createElement('div'));
         welcomeBanner.id = 'gc-welcome-banner';
         welcomeBanner.textContent = '';
+        welcomeBanner.style.top = defaultSettings.positions['gc-welcome-banner'].top;
+        welcomeBanner.style.left = defaultSettings.positions['gc-welcome-banner'].left;
 
         const master = document.body.appendChild(document.createElement('div'));
         master.id = 'gc-master-container';
         master.innerHTML = `
+            <div id="gc-master-bg"></div>
+
             <div id="gc-branding">
                 <img src="${LOGO_URL}">
                 <h1>GC</h1>
@@ -1477,6 +2305,7 @@
                     <button id="gc-play" ${settings.nicknameConfirmed && settings.nickname.trim() ? '' : 'disabled'}>${t('play')}</button>
                     <button class="gc-sub-btn" id="gc-open-settings">${t('modSettings')}</button>
                     <button class="gc-sub-btn" id="gc-discord">${t('discord')}</button>
+                    <button class="gc-sub-btn" id="gc-sounds-btn">${t('sounds')}</button>
                     <button class="gc-sub-btn" id="gc-credits-btn">${t('credits')}</button>
                 </div>
             </div>
@@ -1484,22 +2313,36 @@
             <div class="gc-footer-version">GC ${VERSION}</div>
         `;
 
+        const masterBg = document.getElementById('gc-master-bg');
+        if (masterBg) {
+            masterBg.style.backgroundImage = `url("${SPLASH_BG}")`;
+
+            const markBgReady = () => master.classList.add('gc-bg-ready');
+
+            if (splashPreloader.complete) {
+                markBgReady();
+            } else {
+                splashPreloader.onload = markBgReady;
+                splashPreloader.onerror = markBgReady;
+            }
+        }
+
         const mainTitle = document.body.appendChild(document.createElement('div'));
         mainTitle.id = 'greasy-main-title';
         mainTitle.innerText = t('greasyTitle');
-        mainTitle.style.top = settings.positions['greasy-main-title'].top;
-        mainTitle.style.left = settings.positions['greasy-main-title'].left;
+        mainTitle.style.top = getPositionForElement('greasy-main-title').top;
+        mainTitle.style.left = getPositionForElement('greasy-main-title').left;
 
         const fpsW = createHUDElement(
             'fps-wrap',
             `<div id="fps-display" class="hud-item">${t('fps')}: 0</div>`,
-            settings.positions['fps-wrap']
+            getPositionForElement('fps-wrap')
         );
 
         const cpsW = createHUDElement(
             'cps-wrap',
             `<div id="cps-display" class="hud-item">${t('cps')}: 0</div>`,
-            settings.positions['cps-wrap']
+            getPositionForElement('cps-wrap')
         );
 
         const keysW = createHUDElement(
@@ -1519,60 +2362,119 @@
                 <div id="key-Mouse2" class="key key-mouse">RMB</div>
             </div>
             `,
-            settings.positions['keys-wrap']
+            getPositionForElement('keys-wrap')
         );
 
         const clockW = createHUDElement(
             'clock-wrap',
             `<div id="clock-display" class="hud-item">${t('time')}: 00:00:00</div>`,
-            settings.positions['clock-wrap']
+            getPositionForElement('clock-wrap')
         );
 
-        [mainTitle, fpsW, cpsW, keysW, clockW, welcomeBanner].forEach(makeDraggable);
+
+        [mainTitle, fpsW, cpsW, keysW, clockW].forEach(makeDraggable);
+        applyModulePositions();
 
         const menu = document.body.appendChild(document.createElement('div'));
         menu.id = 'client-menu';
         menu.innerHTML = `
-            <h2 id="gc-mods-title" style="color:var(--gc-accent); margin:0;">${t('modsTitle')}</h2>
-            <p id="gc-mods-hint" style="font-size:11px; color:#8f98a3; margin-bottom:15px;">${t('modsHint')}</p>
+            <div class="gc-menu-header">
+                <h2 id="gc-mods-title">${t('modsTitle')}</h2>
+                <p id="gc-mods-hint">${t('modsHint')}</p>
+            </div>
 
-            <div id="gc-menu-bg-label" class="gc-label">${t('menuBgLabel')}</div>
-            <input id="gc-bg-url-input" type="text" value="${settings.gameMenuBgUrl}" class="gc-input-field" style="width:93%;">
+            <div class="gc-settings-section">
+                <div class="gc-section-title">Menu</div>
+                <div id="gc-menu-bg-label" class="gc-label">${t('menuBgLabel')}</div>
+                <input id="gc-bg-url-input" type="text" value="${settings.gameMenuBgUrl}" class="gc-input-field">
 
-            <div class="gc-row-2">
-                <div>
-                    <div id="gc-language-label" class="gc-label">${t('language')}</div>
-                    <select id="gc-language-select" class="gc-select">
-                        <option value="en">${t('english')}</option>
-                        <option value="es">${t('spanish')}</option>
-                    </select>
-                </div>
+                <div class="gc-row-2">
+                    <div>
+                        <div id="gc-language-label" class="gc-label">${t('language')}</div>
+                        <select id="gc-language-select" class="gc-select">
+                            <option value="en">${t('english')}</option>
+                            <option value="es">${t('spanish')}</option>
+                        </select>
+                    </div>
 
-                <div>
-                    <div id="gc-accent-label" class="gc-label">${t('accentColor')}</div>
-                    <select id="gc-accent-select" class="gc-select"></select>
+                    <div>
+                        <div id="gc-accent-label" class="gc-label">${t('accentColor')}</div>
+                        <select id="gc-accent-select" class="gc-select"></select>
+                    </div>
                 </div>
             </div>
 
-            <div id="gc-custom-name-label" class="gc-label">${t('customPresetName')}</div>
-            <input id="gc-custom-name-input" type="text" class="gc-input-field" placeholder="${t('customPresetName')}" maxlength="30">
+            <div class="gc-settings-section">
+                <div class="gc-section-title">Custom Colors</div>
+                <div class="gc-row-2">
+                    <div>
+                        <div id="gc-custom-name-label" class="gc-label">${t('customPresetName')}</div>
+                        <input id="gc-custom-name-input" type="text" class="gc-input-field" placeholder="${t('customPresetName')}" maxlength="30">
+                    </div>
 
-            <div id="gc-custom-color-label" class="gc-label">${t('pickCustomColor')}</div>
-            <input id="gc-custom-color-input" type="color" class="gc-color-input" value="#00ff88">
+                    <div>
+                        <div id="gc-custom-color-label" class="gc-label">${t('pickCustomColor')}</div>
+                        <input id="gc-custom-color-input" type="color" class="gc-color-input" value="#00ff88">
+                    </div>
+                </div>
 
-            <button id="gc-save-custom-color">${t('saveCustomColor')}</button>
+                <button id="gc-save-custom-color">${t('saveCustomColor')}</button>
 
-            <div class="gc-custom-presets-wrap">
-                <div id="gc-custom-presets-label" class="gc-label" style="margin-top:0;">${t('customPresets')}</div>
-                <div id="gc-custom-count" style="font-size:11px; color:#8f98a3; text-align:right;">0/${MAX_CUSTOM_PRESETS}</div>
-                <div id="gc-custom-presets-list"></div>
+                <div class="gc-custom-presets-wrap">
+                    <div id="gc-custom-presets-label" class="gc-label" style="margin-top:0;">${t('customPresets')}</div>
+                    <div id="gc-custom-count" style="font-size:11px; color:#8f98a3; text-align:right;">0/${MAX_CUSTOM_PRESETS}</div>
+                    <div id="gc-custom-presets-list"></div>
+                </div>
             </div>
 
-            <button id="btn-cross" class="gc-sub-btn ${settings.showCrosshair ? 'active-opt' : ''}">${t('customCrosshair')}</button>
-            <button id="btn-fps" class="gc-sub-btn ${settings.showFPS ? 'active-opt' : ''}">${t('fpsCounter')}</button>
-            <button id="btn-cps" class="gc-sub-btn ${settings.showCPS ? 'active-opt' : ''}">${t('cpsCounter')}</button>
-            <button id="btn-keys" class="gc-sub-btn ${settings.showKeystrokes ? 'active-opt' : ''}">${t('keystrokes')}</button>
-            <button id="btn-clock" class="gc-sub-btn ${settings.showClock ? 'active-opt' : ''}">${t('clock')}</button>
+            <div class="gc-settings-section">
+                <div class="gc-section-title">Modules</div>
+                <div class="gc-modules-grid">
+                    <button id="btn-save-modules" class="gc-sub-btn ${settings.autoSaveModules ? 'active-opt' : ''}">${t('saveModules')}</button>
+                    <button id="btn-optimized-mode" class="gc-sub-btn ${settings.optimizedMode ? 'active-opt' : ''}">${t('optimizedMode')}</button>
+                    <button id="btn-cross" class="gc-sub-btn ${settings.showCrosshair ? 'active-opt' : ''}">${t('customCrosshair')}</button>
+                    <button id="btn-fps" class="gc-sub-btn ${settings.showFPS ? 'active-opt' : ''}">${t('fpsCounter')}</button>
+                    <button id="btn-cps" class="gc-sub-btn ${settings.showCPS ? 'active-opt' : ''}">${t('cpsCounter')}</button>
+                    <button id="btn-keys" class="gc-sub-btn ${settings.showKeystrokes ? 'active-opt' : ''}">${t('keystrokes')}</button>
+                    <button id="btn-clock" class="gc-sub-btn ${settings.showClock ? 'active-opt' : ''}">${t('clock')}</button>
+                </div>
+                <div class="gc-inline-note">Save Modules ON = remembers active modules and HUD positions. OFF = starts clean each time.</div>
+            </div>
+        `;
+
+        const soundsModal = document.body.appendChild(document.createElement('div'));
+        soundsModal.id = 'gc-sounds-modal';
+        soundsModal.innerHTML = `
+            <h2 id="gc-sounds-title" class="gc-credits-title">${t('soundsTitle')}</h2>
+
+            <div class="gc-sound-toggle-row">
+                <div>
+                    <div id="gc-sounds-enabled-label" style="font-weight:800;">${t('soundsEnabled')}</div>
+                    <div style="font-size:12px; color:var(--gc-text-muted); margin-top:3px;">Choose your client button sound style.</div>
+                </div>
+                <div id="gc-sounds-toggle" class="gc-sound-switch ${settings.soundsEnabled ? 'gc-on' : ''}"></div>
+            </div>
+
+            <div class="gc-sound-volume-wrap">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                    <div id="gc-sound-volume-label" style="font-weight:800;">${t('soundVolume')}</div>
+                    <button id="gc-test-sound" style="width:auto; padding:8px 12px; margin-top:0;">${t('soundTest')}</button>
+                </div>
+                <div class="gc-sound-volume-row">
+                    <input id="gc-sound-volume" type="range" min="0" max="100" value="${settings.soundVolume}">
+                    <div id="gc-sound-volume-value">${settings.soundVolume}%</div>
+                </div>
+            </div>
+
+            <div class="gc-sounds-grid">
+                <button class="gc-sound-option ${settings.soundPreset === 'crystal' ? 'gc-selected-sound' : ''}" data-sound-preset="crystal">${t('soundCrystal')}</button>
+                <button class="gc-sound-option ${settings.soundPreset === 'cyber' ? 'gc-selected-sound' : ''}" data-sound-preset="cyber">${t('soundCyber')}</button>
+                <button class="gc-sound-option ${settings.soundPreset === 'bubble' ? 'gc-selected-sound' : ''}" data-sound-preset="bubble">${t('soundBubble')}</button>
+                <button class="gc-sound-option ${settings.soundPreset === 'retro' ? 'gc-selected-sound' : ''}" data-sound-preset="retro">${t('soundRetro')}</button>
+                <button class="gc-sound-option gc-full-span ${settings.soundPreset === 'soft' ? 'gc-selected-sound' : ''}" data-sound-preset="soft">${t('soundSoft')}</button>
+            </div>
+
+            <button id="gc-close-sounds">${t('close')}</button>
         `;
 
         const creditsModal = document.body.appendChild(document.createElement('div'));
@@ -1715,6 +2617,7 @@
 
             setTimeout(() => {
                 master.remove();
+                applyModulePositions();
 
                 mainTitle.style.display = 'block';
                 mainTitle.style.animation = 'gcFadeInUp .4s var(--gc-ease)';
@@ -1738,6 +2641,10 @@
             window.open(DISCORD_LINK, '_blank');
         };
 
+        document.getElementById('gc-sounds-btn').onclick = () => {
+            openPanel(soundsModal);
+        };
+
         document.getElementById('gc-credits-btn').onclick = () => {
             openPanel(creditsModal);
         };
@@ -1745,6 +2652,64 @@
         document.getElementById('gc-close-credits').onclick = () => {
             closePanel(creditsModal);
         };
+
+        document.getElementById('gc-close-sounds').onclick = () => {
+            closePanel(soundsModal);
+        };
+
+        document.getElementById('gc-sounds-toggle').onclick = () => {
+            settings.soundsEnabled = !settings.soundsEnabled;
+            save();
+
+            const toggle = document.getElementById('gc-sounds-toggle');
+            if (toggle) toggle.classList.toggle('gc-on', settings.soundsEnabled);
+
+            if (settings.soundsEnabled) {
+                playGcTone('on', settings.soundPreset);
+            }
+        };
+
+        document.getElementById('gc-sound-volume').oninput = (e) => {
+            settings.soundVolume = Math.max(0, Math.min(100, Number(e.target.value)));
+            const value = document.getElementById('gc-sound-volume-value');
+            if (value) value.textContent = `${settings.soundVolume}%`;
+            save();
+        };
+
+        document.getElementById('gc-sound-volume').onchange = () => {
+            playGcTone('click', settings.soundPreset);
+        };
+
+        document.getElementById('gc-test-sound').onclick = () => {
+            settings.soundsEnabled = true;
+            save();
+
+            const toggle = document.getElementById('gc-sounds-toggle');
+            if (toggle) toggle.classList.add('gc-on');
+
+            playGcTone('on', settings.soundPreset);
+        };
+
+        document.querySelectorAll('.gc-sound-option').forEach(btn => {
+            btn.onclick = () => {
+                const preset = btn.getAttribute('data-sound-preset');
+                if (!preset) return;
+
+                settings.soundPreset = preset;
+                settings.soundsEnabled = true;
+                save();
+
+                document.querySelectorAll('.gc-sound-option').forEach(opt => {
+                    opt.classList.toggle('gc-selected-sound', opt.getAttribute('data-sound-preset') === preset);
+                });
+
+                const toggle = document.getElementById('gc-sounds-toggle');
+                if (toggle) toggle.classList.add('gc-on');
+
+                playGcTone('on', preset);
+                showMiniNotice(t('soundSelected'));
+            };
+        });
 
         document.getElementById('gc-sub-founder').onclick = () => {
             window.open(YT_NOT_COLE, '_blank');
@@ -1861,43 +2826,66 @@
             showMiniNotice(t('presetDeleted'));
         };
 
+        document.getElementById('btn-save-modules').onclick = (e) => {
+            settings.autoSaveModules = !settings.autoSaveModules;
+            e.target.classList.toggle('active-opt', settings.autoSaveModules);
+
+            if (settings.autoSaveModules) {
+                captureModulePositions();
+                save();
+                showMiniNotice('Save Modules ON');
+            } else {
+                save();
+                showMiniNotice('Save Modules OFF');
+            }
+        };
+
+        document.getElementById('btn-optimized-mode').onclick = (e) => {
+            settings.optimizedMode = !settings.optimizedMode;
+            e.target.classList.toggle('active-opt', settings.optimizedMode);
+            applyOptimizedMode();
+            save();
+
+            showMiniNotice(settings.optimizedMode ? t('optimizedOn') : t('optimizedOff'));
+        };
+
         document.getElementById('btn-cross').onclick = (e) => {
             settings.showCrosshair = !settings.showCrosshair;
             cross.style.display = settings.showCrosshair ? 'block' : 'none';
-            e.target.classList.toggle('active-opt');
-            save();
+            e.target.classList.toggle('active-opt', settings.showCrosshair);
+            saveModulesIfEnabled();
         };
 
         document.getElementById('btn-fps').onclick = (e) => {
             settings.showFPS = !settings.showFPS;
             if (settings.showFPS) revealHUD(fpsW);
             else hideHUD(fpsW);
-            e.target.classList.toggle('active-opt');
-            save();
+            e.target.classList.toggle('active-opt', settings.showFPS);
+            saveModulesIfEnabled();
         };
 
         document.getElementById('btn-cps').onclick = (e) => {
             settings.showCPS = !settings.showCPS;
             if (settings.showCPS) revealHUD(cpsW);
             else hideHUD(cpsW);
-            e.target.classList.toggle('active-opt');
-            save();
+            e.target.classList.toggle('active-opt', settings.showCPS);
+            saveModulesIfEnabled();
         };
 
         document.getElementById('btn-keys').onclick = (e) => {
             settings.showKeystrokes = !settings.showKeystrokes;
             if (settings.showKeystrokes) revealHUD(keysW);
             else hideHUD(keysW);
-            e.target.classList.toggle('active-opt');
-            save();
+            e.target.classList.toggle('active-opt', settings.showKeystrokes);
+            saveModulesIfEnabled();
         };
 
         document.getElementById('btn-clock').onclick = (e) => {
             settings.showClock = !settings.showClock;
             if (settings.showClock) revealHUD(clockW);
             else hideHUD(clockW);
-            e.target.classList.toggle('active-opt');
-            save();
+            e.target.classList.toggle('active-opt', settings.showClock);
+            saveModulesIfEnabled();
         };
 
         setTimeout(() => {
@@ -1911,9 +2899,7 @@
         updateTexts();
     }
 
-    // =========================
     // SYSTEMS
-    // =========================
     function startSystems() {
         let frames = 0;
         let lastTime = performance.now();
@@ -1922,7 +2908,6 @@
         window.addEventListener('mousedown', () => {
             clicks.push(Date.now());
         });
-
         function update() {
             frames++;
             const now = performance.now();
@@ -1954,9 +2939,16 @@
         update();
     }
 
-    // =========================
+    // RESPONSIVE MODULE BARRIER
+    let resizeFixTimer = null;
+    window.addEventListener('resize', () => {
+        clearTimeout(resizeFixTimer);
+        resizeFixTimer = setTimeout(() => {
+            applyModulePositions();
+        }, 80);
+    });
+
     // KEY EVENTS
-    // =========================
     window.addEventListener('keydown', e => {
         const k = document.getElementById(`key-${e.code}`);
         if (k) k.classList.add('active');
@@ -1968,6 +2960,7 @@
 
         if (e.code === 'Escape') {
             const creditsModal = document.getElementById('gc-credits-modal');
+            const soundsModal = document.getElementById('gc-sounds-modal');
             const deleteModal = document.getElementById('gc-delete-confirm-modal');
             const nickModal = document.getElementById('gc-nick-confirm-modal');
 
@@ -1978,6 +2971,11 @@
 
             if (deleteModal && deleteModal.style.display === 'block') {
                 closePanel(deleteModal);
+                return;
+            }
+
+            if (soundsModal && soundsModal.style.display === 'block') {
+                closePanel(soundsModal);
                 return;
             }
 
@@ -1992,9 +2990,7 @@
         if (k) k.classList.remove('active');
     });
 
-    // =========================
     // MOUSE EVENTS FOR KEYSTROKES
-    // =========================
     window.addEventListener('mousedown', e => {
         const mouseKey = document.getElementById(`key-Mouse${e.button}`);
         if (mouseKey) mouseKey.classList.add('active');
