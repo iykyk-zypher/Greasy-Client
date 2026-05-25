@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Greasy Client - 3.8.1
+// @name         Greasy Client - 3.9 - Last Update.
 // @namespace    http://tampermonkey.net/
-// @version      3.8.1
+// @version      3.9
 // @description  Official Greasy Client
 // @author       Botless, Not_Cole & AngryWolfX
 // @match        https://miniblox.io/*
