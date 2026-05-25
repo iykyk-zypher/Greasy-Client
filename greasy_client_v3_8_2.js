@@ -15,7 +15,7 @@
     'use strict';
 
     // CONFIG
-    const VERSION = "v3.10.2";
+    const VERSION = "v3.9";
     const LOGO_URL = "https://tinyurl.com/greasyclient";
     const SPLASH_BG = "https://wallpaperaccess.com/full/439751.jpg";
     const splashPreloader = new Image();
@@ -32,6 +32,7 @@
         "TIME TO FLY OFF!",
         "Stay Greasy.",
         "GC ON TOP!"
+        "We Arent Updating The Client Anymore..!"
     ];
     const randomPhrase = phrases[Math.floor(Math.random() * phrases.length)];
 
