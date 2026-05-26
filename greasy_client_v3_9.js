@@ -18,7 +18,7 @@
         "Bypassing The Limits....",
         "TIME TO FLY OFF!",
         "Stay Greasy.",
-        "GC ON TOP!"
+        "GC ON TOP!",
         "We Arent Updating The Client Anymore..!"
     ];
     const randomPhrase = phrases[Math.floor(Math.random() * phrases.length)];
