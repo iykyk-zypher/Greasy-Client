@@ -480,6 +480,9 @@
             keystrokes: "KEYSTROKES",
             clock: "CLOCK",
             saveModules: "SAVE MODULES",
+            optimizedMode: "OPTIMIZED MODE",
+            optimizedOn: "Optimized Mode ON",
+            optimizedOff: "Optimized Mode OFF",
             time: "TIME",
             language: "LANGUAGE",
             accentColor: "ACCENT COLOR",
@@ -546,6 +549,9 @@
             keystrokes: "TECLAS",
             clock: "RELOJ",
             saveModules: "GUARDAR MÓDULOS",
+            optimizedMode: "MODO OPTIMIZADO",
+            optimizedOn: "Modo optimizado ACTIVADO",
+            optimizedOff: "Modo optimizado DESACTIVADO",
             time: "HORA",
             language: "IDIOMA",
             accentColor: "COLOR DE ACENTO",
@@ -771,12 +777,20 @@
             }
 
             #gc-branding {
+                width: 360px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
                 text-align: center;
                 animation: gcFadeInUp .8s var(--gc-ease);
             }
 
             #gc-branding img {
                 width: 140px;
+                height: 140px;
+                object-fit: cover;
+                object-position: center;
+                display: block;
                 border-radius: 22px;
                 border: 3px solid var(--gc-accent);
                 box-shadow: 0 0 25px var(--gc-glow);
@@ -787,7 +801,8 @@
                 color: var(--gc-accent);
                 font-size: 55px;
                 margin: 15px 0 0;
-                letter-spacing: 15px;
+                letter-spacing: 10px;
+                padding-left: 10px;
                 font-weight: 900;
                 text-shadow: 0 0 12px var(--gc-glow);
             }
