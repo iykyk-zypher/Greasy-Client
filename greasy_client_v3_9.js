@@ -2,7 +2,7 @@
     'use strict';
 
     // CONFIG
-    const VERSION = "v3.9";
+    const VERSION = "v4.0-clean";
     const LOGO_URL = "https://tinyurl.com/greasyclient";
     const SPLASH_BG = "https://wallpaperaccess.com/full/439751.jpg";
     const splashPreloader = new Image();
@@ -15,11 +15,11 @@
     const MAX_CUSTOM_PRESETS = 10;
 
     const phrases = [
-        "Bypassing The Limits....",
-        "TIME TO FLY OFF!",
-        "Stay Greasy.",
-        "GC ON TOP!",
-        "We Arent Updating The Client Anymore..!"
+        "Greasy Client loaded.",
+        "Clean HUD. Fast controls.",
+        "Customize your Miniblox experience.",
+        "Ready to play.",
+        "Optimized for smoother gameplay."
     ];
     const randomPhrase = phrases[Math.floor(Math.random() * phrases.length)];
 
@@ -58,7 +58,29 @@
         }
     };
 
-    let settings = JSON.parse(localStorage.getItem('greasyClientSettings')) || defaultSettings;
+    function safeParseSettings() {
+        try {
+            const raw = localStorage.getItem('greasyClientSettings');
+            if (!raw) return JSON.parse(JSON.stringify(defaultSettings));
+
+            const parsed = JSON.parse(raw);
+            return {
+                ...JSON.parse(JSON.stringify(defaultSettings)),
+                ...parsed,
+                positions: {
+                    ...JSON.parse(JSON.stringify(defaultSettings.positions)),
+                    ...(parsed.positions || {})
+                },
+                customColors: parsed.customColors || {}
+            };
+        } catch (e) {
+            console.warn('[Greasy Client] Settings were corrupted. Resetting settings.', e);
+            localStorage.removeItem('greasyClientSettings');
+            return JSON.parse(JSON.stringify(defaultSettings));
+        }
+    }
+
+    let settings = safeParseSettings();
     settings.language = settings.language || "en";
     settings.accentPreset = settings.accentPreset || "green";
     settings.showClock = typeof settings.showClock === "boolean" ? settings.showClock : false;
@@ -102,6 +124,25 @@
     forceCleanModulesIfAutoSaveOff();
 
     const save = () => localStorage.setItem('greasyClientSettings', JSON.stringify(settings));
+
+    function debounce(fn, delay = 250) {
+        let timer = null;
+        return (...args) => {
+            clearTimeout(timer);
+            timer = setTimeout(() => fn(...args), delay);
+        };
+    }
+
+    const debouncedSave = debounce(save, 300);
+
+    function isSafeImageUrl(url) {
+        try {
+            const parsed = new URL(url);
+            return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+        } catch (e) {
+            return false;
+        }
+    }
 
     function saveModulesIfEnabled() {
         if (settings.autoSaveModules) {
@@ -202,15 +243,30 @@
     }
 
 
+    let gcAudioContext = null;
+
+    function getGcAudioContext() {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return null;
+
+        if (!gcAudioContext) {
+            gcAudioContext = new AudioCtx();
+        }
+
+        if (gcAudioContext.state === 'suspended') {
+            gcAudioContext.resume();
+        }
+
+        return gcAudioContext;
+    }
+
     function playGcTone(type = 'click', previewPreset = null) {
         try {
             if (!settings.soundsEnabled && !previewPreset) return;
 
-            const AudioCtx = window.AudioContext || window.webkitAudioContext;
-            if (!AudioCtx) return;
-
             const preset = previewPreset || settings.soundPreset || 'crystal';
-            const ctx = new AudioCtx();
+            const ctx = getGcAudioContext();
+            if (!ctx) return;
             const now = ctx.currentTime;
 
             const volumeLevel = Math.max(0, Math.min(2.4, Number(settings.soundVolume || 70) / 100));
@@ -292,7 +348,6 @@
                 tone(a, b, now + offset, duration, wave, volume);
             });
 
-            setTimeout(() => ctx.close(), 700);
         } catch (e) {}
     }
 
@@ -470,7 +525,7 @@
             nickRequired: "Nickname is required.",
             nickConfirmed: "Nickname confirmed.",
             nickChangedNeedsConfirm: "Confirm your nickname to unlock Play.",
-            welcomeToGc: "Welcome to Greasy Client",
+            welcomeToGc: "Bienvenido a Greasy Client",
             modsTitle: "GC MODS",
             modsHint: "R-SHIFT to close (Drag HUD when open)",
             menuBgLabel: "Menu Background URL:",
@@ -539,7 +594,7 @@
             nickRequired: "El nickname es obligatorio.",
             nickConfirmed: "Nickname confirmado.",
             nickChangedNeedsConfirm: "Confirma tu nickname para desbloquear Play.",
-            welcomeToGc: "Welcome to Greasy Client",
+            welcomeToGc: "Bienvenido a Greasy Client",
             modsTitle: "MODS GC",
             modsHint: "R-SHIFT para cerrar (arrastra el HUD al abrir)",
             menuBgLabel: "URL del fondo del menú:",
@@ -601,7 +656,6 @@
             }
         });
     }
-    setInterval(modifyMinibloxImages, 500);
 
     // MINIBLOX BUTTON STYLE FIXED
     function styleMinibloxButtons() {
@@ -658,7 +712,21 @@
             }
         });
     }
-    setInterval(styleMinibloxButtons, 700);
+
+    function startMinibloxObserver() {
+        if (startMinibloxObserver.started) return;
+        startMinibloxObserver.started = true;
+
+        const refresh = debounce(() => {
+            modifyMinibloxImages();
+            styleMinibloxButtons();
+        }, 120);
+
+        const observer = new MutationObserver(refresh);
+        observer.observe(document.body, { childList: true, subtree: true });
+
+        refresh();
+    }
 
     // STYLES
     const style = document.createElement('style');
@@ -2276,6 +2344,7 @@
         bindMagneticButtons();
         applyTheme();
         applyOptimizedMode();
+        startMinibloxObserver();
 
         const cross = document.body.appendChild(document.createElement('div'));
         cross.id = 'gc-crosshair';
@@ -2727,7 +2796,20 @@
         };
 
         document.getElementById('gc-bg-url-input').oninput = (e) => {
-            settings.gameMenuBgUrl = e.target.value;
+            settings.gameMenuBgUrl = e.target.value.trim();
+            debouncedSave();
+        };
+
+        document.getElementById('gc-bg-url-input').onchange = (e) => {
+            const value = e.target.value.trim();
+
+            if (!isSafeImageUrl(value)) {
+                e.target.value = settings.gameMenuBgUrl;
+                showMiniNotice('Invalid image URL.', true);
+                return;
+            }
+
+            settings.gameMenuBgUrl = value;
             save();
         };
 
