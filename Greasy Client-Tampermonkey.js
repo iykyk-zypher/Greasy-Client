@@ -20,7 +20,7 @@
     const BRANCH = "main";
     const CLIENT_FILE = "greasy_client_v3_9.js";
 
-    const CLIENT_URL = `https://github.com/iykyk-zypher/Greasy-Client/blob/main/greasy_client_v3_9.js`;
+    const CLIENT_URL = `https://raw.githubusercontent.com/iykyk-zypher/Greasy-Client/refs/heads/main/greasy_client_v3_9.js`;
 
     // LOADER
     function log(message, data) {
