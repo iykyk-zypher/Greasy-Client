@@ -1,9 +1,8 @@
-
 (function () {
     'use strict';
 
     // CONFIG
-    const VERSION = "v4.0-clean";
+    const VERSION = "v3.9";
     const LOGO_URL = "https://tinyurl.com/greasyclient";
     const SPLASH_BG = "https://wallpaperaccess.com/full/439751.jpg";
     const splashPreloader = new Image();
@@ -16,11 +15,11 @@
     const MAX_CUSTOM_PRESETS = 10;
 
     const phrases = [
-        "Greasy Client loaded.",
-        "Clean HUD. Fast controls.",
-        "Customize your Miniblox experience.",
-        "Ready to play.",
-        "Optimized for smoother gameplay."
+        "Bypassing The Limits....",
+        "TIME TO FLY OFF!",
+        "Stay Greasy.",
+        "GC ON TOP!",
+        "We Arent Updating The Client Anymore..!"
     ];
     const randomPhrase = phrases[Math.floor(Math.random() * phrases.length)];
 
@@ -59,29 +58,7 @@
         }
     };
 
-    function safeParseSettings() {
-        try {
-            const raw = localStorage.getItem('greasyClientSettings');
-            if (!raw) return JSON.parse(JSON.stringify(defaultSettings));
-
-            const parsed = JSON.parse(raw);
-            return {
-                ...JSON.parse(JSON.stringify(defaultSettings)),
-                ...parsed,
-                positions: {
-                    ...JSON.parse(JSON.stringify(defaultSettings.positions)),
-                    ...(parsed.positions || {})
-                },
-                customColors: parsed.customColors || {}
-            };
-        } catch (e) {
-            console.warn('[Greasy Client] Settings were corrupted. Resetting settings.', e);
-            localStorage.removeItem('greasyClientSettings');
-            return JSON.parse(JSON.stringify(defaultSettings));
-        }
-    }
-
-    let settings = safeParseSettings();
+    let settings = JSON.parse(localStorage.getItem('greasyClientSettings')) || defaultSettings;
     settings.language = settings.language || "en";
     settings.accentPreset = settings.accentPreset || "green";
     settings.showClock = typeof settings.showClock === "boolean" ? settings.showClock : false;
@@ -125,25 +102,6 @@
     forceCleanModulesIfAutoSaveOff();
 
     const save = () => localStorage.setItem('greasyClientSettings', JSON.stringify(settings));
-
-    function debounce(fn, delay = 250) {
-        let timer = null;
-        return (...args) => {
-            clearTimeout(timer);
-            timer = setTimeout(() => fn(...args), delay);
-        };
-    }
-
-    const debouncedSave = debounce(save, 300);
-
-    function isSafeImageUrl(url) {
-        try {
-            const parsed = new URL(url);
-            return parsed.protocol === 'http:' || parsed.protocol === 'https:';
-        } catch (e) {
-            return false;
-        }
-    }
 
     function saveModulesIfEnabled() {
         if (settings.autoSaveModules) {
@@ -244,30 +202,15 @@
     }
 
 
-    let gcAudioContext = null;
-
-    function getGcAudioContext() {
-        const AudioCtx = window.AudioContext || window.webkitAudioContext;
-        if (!AudioCtx) return null;
-
-        if (!gcAudioContext) {
-            gcAudioContext = new AudioCtx();
-        }
-
-        if (gcAudioContext.state === 'suspended') {
-            gcAudioContext.resume();
-        }
-
-        return gcAudioContext;
-    }
-
     function playGcTone(type = 'click', previewPreset = null) {
         try {
             if (!settings.soundsEnabled && !previewPreset) return;
 
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (!AudioCtx) return;
+
             const preset = previewPreset || settings.soundPreset || 'crystal';
-            const ctx = getGcAudioContext();
-            if (!ctx) return;
+            const ctx = new AudioCtx();
             const now = ctx.currentTime;
 
             const volumeLevel = Math.max(0, Math.min(2.4, Number(settings.soundVolume || 70) / 100));
@@ -349,6 +292,7 @@
                 tone(a, b, now + offset, duration, wave, volume);
             });
 
+            setTimeout(() => ctx.close(), 700);
         } catch (e) {}
     }
 
@@ -526,7 +470,7 @@
             nickRequired: "Nickname is required.",
             nickConfirmed: "Nickname confirmed.",
             nickChangedNeedsConfirm: "Confirm your nickname to unlock Play.",
-            welcomeToGc: "Bienvenido a Greasy Client",
+            welcomeToGc: "Welcome to Greasy Client",
             modsTitle: "GC MODS",
             modsHint: "R-SHIFT to close (Drag HUD when open)",
             menuBgLabel: "Menu Background URL:",
@@ -595,7 +539,7 @@
             nickRequired: "El nickname es obligatorio.",
             nickConfirmed: "Nickname confirmado.",
             nickChangedNeedsConfirm: "Confirma tu nickname para desbloquear Play.",
-            welcomeToGc: "Bienvenido a Greasy Client",
+            welcomeToGc: "Welcome to Greasy Client",
             modsTitle: "MODS GC",
             modsHint: "R-SHIFT para cerrar (arrastra el HUD al abrir)",
             menuBgLabel: "URL del fondo del menú:",
@@ -657,6 +601,7 @@
             }
         });
     }
+    setInterval(modifyMinibloxImages, 500);
 
     // MINIBLOX BUTTON STYLE FIXED
     function styleMinibloxButtons() {
@@ -713,55 +658,53 @@
             }
         });
     }
-
-    function startMinibloxObserver() {
-        if (startMinibloxObserver.started) return;
-        startMinibloxObserver.started = true;
-
-        const refresh = debounce(() => {
-            modifyMinibloxImages();
-            styleMinibloxButtons();
-        }, 120);
-
-        const observer = new MutationObserver(refresh);
-        observer.observe(document.body, { childList: true, subtree: true });
-
-        refresh();
-    }
+    setInterval(styleMinibloxButtons, 700);
 
     // STYLES
     const style = document.createElement('style');
     style.id = 'gc-pro-style';
     document.head.appendChild(style);
 
+
     // COLOR CHANGE ANIMATION
-function animateColorChange(nextTheme) {
-    try {
-        let wave = document.getElementById('gc-color-wave');
+    function animateColorChange(nextTheme) {
+        try {
+            let wave = document.getElementById('gc-color-wave');
 
-        if (!wave) {
-            wave = document.createElement('div');
-            wave.id = 'gc-color-wave';
-            document.body.appendChild(wave);
-        }
+            if (!wave) {
+                wave = document.createElement('div');
+                wave.id = 'gc-color-wave';
+                document.body.appendChild(wave);
+            }
 
-        wave.style.setProperty('--gc-wave-accent', nextTheme.accent || '#00ff88');
-        wave.style.setProperty('--gc-wave-accent-2', nextTheme.accent2 || nextTheme.accent || '#00ff88');
-
-        wave.classList.remove('gc-color-wave-run');
-        void wave.offsetWidth;
-        wave.classList.add('gc-color-wave-run');
-
-        clearTimeout(animateColorChange._timer);
-        animateColorChange._timer = setTimeout(() => {
+            wave.style.setProperty('--gc-wave-accent', nextTheme.accent || '#00ff88');
+            wave.style.setProperty('--gc-wave-accent-2', nextTheme.accent2 || nextTheme.accent || '#00ff88');
             wave.classList.remove('gc-color-wave-run');
-        }, 720);
-    } catch (e) {}
-}
+            void wave.offsetWidth;
+            wave.classList.add('gc-color-wave-run');
 
-    function applyTheme() {
+            clearTimeout(animateColorChange._timer);
+            animateColorChange._timer = setTimeout(() => {
+                wave.classList.remove('gc-color-wave-run');
+            }, 720);
+        } catch (e) {}
+    }
+
+    function applyTheme(animate = false) {
         const presets = getAllColorPresets();
         const theme = presets[settings.accentPreset] || BASE_COLOR_PRESETS.green;
+
+        if (animate) {
+            animateColorChange(theme);
+            document.body.classList.remove('gc-theme-pop');
+            void document.body.offsetWidth;
+            document.body.classList.add('gc-theme-pop');
+
+            clearTimeout(applyTheme._popTimer);
+            applyTheme._popTimer = setTimeout(() => {
+                document.body.classList.remove('gc-theme-pop');
+            }, 380);
+        }
 
         style.innerHTML = `
             :root {
@@ -804,6 +747,67 @@ function animateColorChange(nextTheme) {
             @keyframes gcShine {
                 0%   { transform: translateX(-140%); }
                 100% { transform: translateX(220%); }
+            }
+
+
+            @keyframes gcColorWave {
+                0% {
+                    opacity: 0;
+                    transform: translate(-50%, -50%) scale(.15);
+                    filter: blur(0px);
+                }
+
+                18% { opacity: .45; }
+                70% { opacity: .16; }
+
+                100% {
+                    opacity: 0;
+                    transform: translate(-50%, -50%) scale(3.2);
+                    filter: blur(10px);
+                }
+            }
+
+            @keyframes gcAccentPop {
+                0% { filter: brightness(1); transform: scale(1); }
+                45% { filter: brightness(1.35); transform: scale(1.015); }
+                100% { filter: brightness(1); transform: scale(1); }
+            }
+
+            #gc-color-wave {
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                width: 220px;
+                height: 220px;
+                border-radius: 999px;
+                pointer-events: none;
+                z-index: 300000;
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(.15);
+                background:
+                    radial-gradient(circle,
+                        color-mix(in srgb, var(--gc-wave-accent) 85%, white 15%) 0%,
+                        color-mix(in srgb, var(--gc-wave-accent-2) 65%, transparent) 38%,
+                        transparent 72%);
+                box-shadow:
+                    0 0 28px color-mix(in srgb, var(--gc-wave-accent) 65%, transparent),
+                    0 0 70px color-mix(in srgb, var(--gc-wave-accent-2) 45%, transparent);
+                mix-blend-mode: screen;
+            }
+
+            #gc-color-wave.gc-color-wave-run {
+                animation: gcColorWave .72s var(--gc-ease) forwards;
+            }
+
+            .gc-theme-pop #client-menu,
+            .gc-theme-pop #gc-master-container,
+            .gc-theme-pop #gc-credits-modal,
+            .gc-theme-pop #gc-sounds-modal,
+            .gc-theme-pop #gc-delete-confirm-modal,
+            .gc-theme-pop #gc-nick-confirm-modal,
+            .gc-theme-pop .hud-item,
+            .gc-theme-pop #greasy-main-title {
+                animation: gcAccentPop .34s ease-out;
             }
 
             @keyframes gcCrosshairPulse {
@@ -2370,7 +2374,6 @@ function animateColorChange(nextTheme) {
         bindMagneticButtons();
         applyTheme();
         applyOptimizedMode();
-        startMinibloxObserver();
 
         const cross = document.body.appendChild(document.createElement('div'));
         cross.id = 'gc-crosshair';
@@ -2822,20 +2825,7 @@ function animateColorChange(nextTheme) {
         };
 
         document.getElementById('gc-bg-url-input').oninput = (e) => {
-            settings.gameMenuBgUrl = e.target.value.trim();
-            debouncedSave();
-        };
-
-        document.getElementById('gc-bg-url-input').onchange = (e) => {
-            const value = e.target.value.trim();
-
-            if (!isSafeImageUrl(value)) {
-                e.target.value = settings.gameMenuBgUrl;
-                showMiniNotice('Invalid image URL.', true);
-                return;
-            }
-
-            settings.gameMenuBgUrl = value;
+            settings.gameMenuBgUrl = e.target.value;
             save();
         };
 
@@ -2848,7 +2838,7 @@ function animateColorChange(nextTheme) {
         document.getElementById('gc-accent-select').onchange = (e) => {
             settings.accentPreset = e.target.value;
             save();
-            applyTheme();
+            applyTheme(true);
             updateTexts();
             styleMinibloxButtons();
         };
@@ -2890,7 +2880,7 @@ function animateColorChange(nextTheme) {
 
             settings.accentPreset = presetKey;
             save();
-            applyTheme();
+            applyTheme(true);
             syncCustomPresetUI();
             updateTexts();
             styleMinibloxButtons();
@@ -2929,7 +2919,7 @@ function animateColorChange(nextTheme) {
 
             pendingDeletePresetKey = null;
             save();
-            applyTheme();
+            applyTheme(true);
             syncCustomPresetUI();
             updateTexts();
             styleMinibloxButtons();
