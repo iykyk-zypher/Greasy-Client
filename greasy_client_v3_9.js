@@ -1,3 +1,4 @@
+
 (function () {
     'use strict';
 
@@ -732,6 +733,31 @@
     const style = document.createElement('style');
     style.id = 'gc-pro-style';
     document.head.appendChild(style);
+
+    // COLOR CHANGE ANIMATION
+function animateColorChange(nextTheme) {
+    try {
+        let wave = document.getElementById('gc-color-wave');
+
+        if (!wave) {
+            wave = document.createElement('div');
+            wave.id = 'gc-color-wave';
+            document.body.appendChild(wave);
+        }
+
+        wave.style.setProperty('--gc-wave-accent', nextTheme.accent || '#00ff88');
+        wave.style.setProperty('--gc-wave-accent-2', nextTheme.accent2 || nextTheme.accent || '#00ff88');
+
+        wave.classList.remove('gc-color-wave-run');
+        void wave.offsetWidth;
+        wave.classList.add('gc-color-wave-run');
+
+        clearTimeout(animateColorChange._timer);
+        animateColorChange._timer = setTimeout(() => {
+            wave.classList.remove('gc-color-wave-run');
+        }, 720);
+    } catch (e) {}
+}
 
     function applyTheme() {
         const presets = getAllColorPresets();
