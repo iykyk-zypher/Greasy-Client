@@ -7,9 +7,9 @@
     const SPLASH_BG = "https://wallpaperaccess.com/full/439751.jpg";
     const splashPreloader = new Image();
     splashPreloader.src = SPLASH_BG;
-    const DISCORD_LINK = "https://discord.gg/emEaezsMzp";
+    const DISCORD_LINK = "https://discord.gg/uTnA7AnDsk";
 
-    const YT_NOT_COLE = "https://www.youtube.com/@Not_ColePlayz?sub_confirmation=1";
+    const YT_NOT_COLE = "https://www.youtube.com/@v0id_br0n?sub_confirmation=1";
     const YT_MINIBLOX = "https://www.youtube.com/@Miniblox-ffgf?sub_confirmation=1";
 
     const MAX_CUSTOM_PRESETS = 10;
